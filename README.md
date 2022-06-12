@@ -8,6 +8,12 @@ A project uses Crazyflies to control a blimp.
   - Onboard computations (Phone? Arduino? Raspberry Pi? Others?)
   - Object recognition (Camera! Others? Do we need a depth sensor?)
 
+# Instructions
+- Clone the repository to your local machine 
+- In "Position Control.py", modify the IP address of the Optitrack server, of your local machine accordingly. Change the uri of the drone.
+- Run the script by typing in a terminal `python3 "Position Control.py"`
+  - Another todo: make those changes of uri and IP addresses into input parameters of the script.
+
 # Demonstration
 Once we had most of the todos work, we will come back to create some demonstrations.
 
