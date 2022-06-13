@@ -161,14 +161,6 @@ if __name__ == '__main__':
             # Position
             p_r = np.array(positions[rigid_body_id][0:3])
 
-            # # Velocity
-            # previous_time = current_time
-            # current_time = time.time()
-            # dp = p_r - old_p_r
-            # dt = current_time - previous_time
-            # v_r = (p_r - old_p_r)/current_time - previous_time
-            # err_v = v_des - v_r
-
             # positional error:
             # a nice PID updater that takes care of the errors including
             # proportional, integral, and derivative terms
@@ -189,7 +181,7 @@ if __name__ == '__main__':
             # err_yaw = yaw_d - yaw_r
 
             # desired force that we want the robot to generate in the {body frame}
-            # fd_b = rot_SO3.T.dot(fd)
+            fd = rot_SO3.T.dot(fd)
 
             # desired torque along yaw
             # tau_z = pid_yaw.Update(err_yaw)
