@@ -21,8 +21,17 @@ from NatNetClient import NatNetClient
 import socket
 
 
-uri = uri_helper.uri_from_env(default='radio://0/82/2M/E7E7E7E7E7')
-rigid_body_id = 13
+if len(sys.argv) != 5:
+    if len(sys.argv) < 5:
+        print("ERROR: Insufficient arguemnts\nPlease use the following form:\npython Position Control.py <radio adddress> <rigid body number> <client address> <optitrack server address>")
+    else:
+        print("ERROR: Too many arguemnts\nPlease use the following form:\npython Position Control.py <radio adddress> <rigid body number> <client address> <optitrack server address>")
+    sys.exit()
+
+radio_address = sys.argv[1]
+uri_address = 'radio://0/'+radio_address+'2M/E7E7E7E7E7'
+uri = uri_helper.uri_from_env(default = uri_address)
+rigid_body_id = sys.argv[2]
 logging.basicConfig(level=logging.ERROR)
 
 positions = {}
@@ -74,9 +83,8 @@ def limitThrust(thrust):
     return thrust
 
 def initialize_optitrack(rigid_body_id):
-    # clientAddress = socket.gethostbyname(socket.gethostname())
-    clientAddress = "192.168.0.5"
-    optitrackServerAddress = "192.168.0.4"
+    clientAddress = sys.argv[3]
+    optitrackServerAddress = sys.argv[4]
 
     streaming_client = NatNetClient()
     streaming_client.set_client_address(clientAddress)
@@ -214,7 +222,7 @@ if __name__ == '__main__':
 
             # desired thrust
             thrust_correction = fd.dot(rot_SO3.dot(e3))
-            cf.commander.send_setpoint(roll, pitch, yaw, limitThrust(int(8000*thrust_correction)))
+            cf.commander.send_setpoint(roll, pitch, yaw, limitThrust(int(8000*thrust_correction))) #-----------------------------------------------------------------------
 
             count += 1
             if count >= 500:
