@@ -21,6 +21,7 @@ import copy
 import time
 import DataDescriptions
 import MoCapData
+import platform
 
 def trace( *args ):
     # uncomment the one you want to use
