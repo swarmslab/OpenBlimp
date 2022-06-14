@@ -29,9 +29,9 @@ if len(sys.argv) != 5:
     sys.exit()
 
 radio_address = sys.argv[1]
-uri_address = 'radio://0/'+radio_address+'2M/E7E7E7E7E7'
+uri_address = 'radio://0/'+radio_address+'/2M/E7E7E7E7E7'
 uri = uri_helper.uri_from_env(default = uri_address)
-rigid_body_id = sys.argv[2]
+rigid_body_id = int(sys.argv[2])
 logging.basicConfig(level=logging.ERROR)
 
 positions = {}
@@ -61,7 +61,7 @@ def set_param(cf, groupstr, namestr, value):
 def _connected(uri):
     print("Connected!")
 
-def _connection_failed(self, link_uri, msg):
+def _connection_failed(self, uri, msg):
     """Callback when connection initial connection fails (i.e no Crazyflie
     at the specified address)"""
     print('Connection to %s failed: %s' % (uri, msg))
@@ -71,16 +71,23 @@ def _connection_lost(uri, msg):
     Crazyflie moves out of range)"""
     print('Connection to %s lost: %s' % (uri, msg))
 
-def _disconnected(self, link_uri):
+def _disconnected(self, uri):
     """Callback when the Crazyflie is disconnected (called in all cases)"""
     print('Disconnected from %s' % uri)
 
 def limitThrust(thrust):
     if thrust >= 65500:
         thrust = 65500
-    if thrust <= 0:
-        thrust = 0
+    if thrust <= 35000:
+        thrust = 35000
     return thrust
+
+def limitAngle(angle):
+    if angle >= 45:
+        angle = 45
+    elif angle <= -45:
+        angle = -45
+    return angle
 
 def initialize_optitrack(rigid_body_id):
     clientAddress = sys.argv[3]
@@ -117,6 +124,7 @@ def initialize_crazyflie():
     print('Connecting to crazyflie at %s' % uri)
 
     cf.open_link(uri)
+    time.sleep(1)
     return cf
 
 if __name__ == '__main__':
@@ -139,20 +147,18 @@ if __name__ == '__main__':
         count = 0                   # Counter
         theta_r = 0                 # Rotation of Robot
         v_des = 0                   # Desired Velocity
-        p_d = np.array([0, 0, 2])     # Desired Position
+        p_d = np.array([5.4, 0, 2])     # Desired Position
         r = .2                      # Destination Threshold
-        # kp = 0.1                    # Proportional Gain
-        # kd = 0.1                    # Derivative Gain
-        mass = 0.04                 # the mass of the quadrotor in kg
-        f_b = 0.25                   # the net lift force of the balloon in N
+        mass = 0.040                 # the mass of the quadrotor in kg
+        f_b = 0.250                   # the net lift force of the balloon in N
         g = 9.81                    # Accelleration due to gravity
         e3 = np.array([0,0,1])      # Z unit vector
         yaw_d = 0                   # Desired Yaw
 
         # We want to control x, y, z, and yaw
-        pid_x   =   pid.PID(1.5, 0.0, 1.0)
-        pid_y   =   pid.PID(1.5, 0.0, 1.0)
-        pid_z   =   pid.PID(3.0, 0.2, 2.0)
+        pid_x   =   pid.PID(1.5, 0.05, 3.5) # parameters: proportional gain, integral gain, derivative gain
+        pid_y   =   pid.PID(.75, 0.05, 4.0) # parameters: proportional gain, integral gain, derivative gain
+        pid_z   =   pid.PID(3.5, 0.05, 3.5) # parameters: proportional gain, integral gain, derivative gain
         # pid_yaw =   pid.PID(16000, 10, 14500)
 
         current_time = time.time()
@@ -214,17 +220,19 @@ if __name__ == '__main__':
 
             # desired thrust
             thrust_correction = fd.dot(rot_SO3.dot(e3))
-            cf.commander.send_setpoint(roll, pitch, yaw, limitThrust(int(8000*thrust_correction))) #-----------------------------------------------------------------------
+            thrust_gain = 80000
+            cf.commander.send_setpoint(limitAngle(roll), limitAngle(pitch), yaw, 5000) #limitThrust(int(thrust_gain*thrust_correction))-----------------------------------------------------------------------
 
             count += 1
-            if count >= 500:
+            if count >= 300:
                 count = 0
                 # print("Orientation of the Robot: ", p_r, "Rotation:", theta_r,"\nDesitnation: ",p_d)
-                print("Current thrust = ", limitThrust(8000*thrust_correction))
-                print("Current Pitch = ", pitch)
-                print("Current Roll = ", roll)
-                print("Current Yaw = ", yaw, "\n\n")
-                # print(rot.as_euler("xyz"), fd, fd_b)
+                print("Current thrust = ",limitThrust(thrust_gain*thrust_correction))
+                print("Current Pitch = %.2f" % (pitch))
+                print("Current Roll = %.2f" % (roll))
+                print("Current Yaw = %.2f" % (yaw))
+                print("Robot Positon = [%.2f, %.2f, %.2f]\n\n" % (p_r[0],p_r[1],p_r[2]))
+                # print(rot.as_euler("xyz"), fd)
                 # print(limitThrust(-fd_b[0]-fd_b[1]+fd_b[2]-tau_z),
                 #       limitThrust(fd_b[0]-fd_b[1]+fd_b[2]+tau_z),
                 #       limitThrust(fd_b[0]+fd_b[1]+fd_b[2]-tau_z),

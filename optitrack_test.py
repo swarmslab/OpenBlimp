@@ -16,9 +16,9 @@ def receive_rigid_body_frame(robot_id, position, rotation_quaternion):
 
 if __name__ == "__main__":
     # clientAddress = socket.gethostbyname(socket.gethostname())
-    clientAddress = "192.168.0.5"
+    clientAddress = "192.168.0.43"
     optitrackServerAddress = "192.168.0.4"
-    robot_id = 14
+    robot_id = 13
 
     # This will create a new NatNet client
     streaming_client = NatNetClient()
