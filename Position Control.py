@@ -75,13 +75,15 @@ def _disconnected(self, uri):
     """Callback when the Crazyflie is disconnected (called in all cases)"""
     print('Disconnected from %s' % uri)
 
+#function limits thrust sent to crazyflie to avoid quickly dropping when overshooting vertical target
 def limitThrust(thrust):
-    if thrust >= 65500:
-        thrust = 65500
+    if thrust >= 65535:
+        thrust = 65535
     if thrust <= 35000:
         thrust = 35000
     return thrust
 
+#Function limits the commands sent to crazyfly for roll and pitch
 def limitAngle(angle):
     if angle >= 45:
         angle = 45
@@ -220,16 +222,18 @@ if __name__ == '__main__':
 
             # desired thrust
             thrust_correction = fd.dot(rot_SO3.dot(e3))
-            cf.commander.send_setpoint(0*roll, 0*pitch, 0.0*rate_yaw, limitThrust(int(32000*thrust_correction)))
+            thrust_gain = 32000
+            cf.commander.send_setpoint(0*roll, 0*pitch, 0.0*rate_yaw, limitThrust(int(thrust_gain*thrust_correction)))
 
             count += 1
             if count >= 300:
                 count = 0
                 # print("Orientation of the Robot: ", p_r, "Rotation:", theta_r,"\nDesitnation: ",p_d)
-                print("Current thrust = ", limitThrust(32000*thrust_correction))
-                print("Current Pitch = ", pitch)
-                print("Current Roll = ", roll)
-                print("Current Yaw = ", rate_yaw, "\n\n")
+                print("Current thrust = ",limitThrust(thrust_gain*thrust_correction))
+                print("Current Pitch = %.2f" % (pitch))
+                print("Current Roll = %.2f" % (roll))
+                print("Current Yaw = %.2f" % (rate_yaw))
+                print("Robot Positon = [%.2f, %.2f, %.2f]\n\n" % (p_r[0],p_r[1],p_r[2]))
 
     except KeyboardInterrupt:
         set_param(cf, 'motorPowerSet', 'enable', 0)
