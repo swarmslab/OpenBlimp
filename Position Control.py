@@ -156,10 +156,10 @@ if __name__ == '__main__':
         yaw_d = 0                   # Desired Yaw
 
         # We want to control x, y, z, and yaw
-        pid_x   =   pid.PID(1.5, 0.05, 3.5) # parameters: proportional gain, integral gain, derivative gain
-        pid_y   =   pid.PID(.75, 0.05, 4.0) # parameters: proportional gain, integral gain, derivative gain
-        pid_z   =   pid.PID(3.5, 0.05, 3.5) # parameters: proportional gain, integral gain, derivative gain
-        # pid_yaw =   pid.PID(16000, 10, 14500)
+        pid_x   =   pid.PID(1.5, 0.0, 1.0)
+        pid_y   =   pid.PID(1.5, 0.0, 1.0)
+        pid_z   =   pid.PID(3.0, 0.05, 2.0)
+        pid_yaw =   pid.PID(0.5, 0.0, 0.5, True, 180.0)
 
         current_time = time.time()
         print("Into the loop now!")
@@ -183,14 +183,14 @@ if __name__ == '__main__':
             # in the format of SO(3)
             rot_SO3 = rot.as_matrix()
             # yaw angle
-            # yaw_r = rot.as_euler("xyz")[2]
-            # err_yaw = yaw_d - yaw_r
+            yaw_r = rot.as_euler("xyz")[2]
+            err_yaw = yaw_d - yaw_r
 
             # desired force that we want the robot to generate in the {body frame}
             fd = rot_SO3.T.dot(fd)
 
             # desired torque along yaw
-            # tau_z = pid_yaw.Update(err_yaw)
+            rate_yaw = pid_yaw.Update(err_yaw)
 
             normfd = np.linalg.norm(fd) # Magnitude
 
@@ -220,35 +220,17 @@ if __name__ == '__main__':
 
             # desired thrust
             thrust_correction = fd.dot(rot_SO3.dot(e3))
-            thrust_gain = 80000
-            cf.commander.send_setpoint(limitAngle(roll), limitAngle(pitch), yaw, 5000) #limitThrust(int(thrust_gain*thrust_correction))-----------------------------------------------------------------------
+            cf.commander.send_setpoint(0*roll, 0*pitch, 0.0*rate_yaw, limitThrust(int(32000*thrust_correction)))
 
             count += 1
             if count >= 300:
                 count = 0
                 # print("Orientation of the Robot: ", p_r, "Rotation:", theta_r,"\nDesitnation: ",p_d)
-                print("Current thrust = ",limitThrust(thrust_gain*thrust_correction))
-                print("Current Pitch = %.2f" % (pitch))
-                print("Current Roll = %.2f" % (roll))
-                print("Current Yaw = %.2f" % (yaw))
-                print("Robot Positon = [%.2f, %.2f, %.2f]\n\n" % (p_r[0],p_r[1],p_r[2]))
-                # print(rot.as_euler("xyz"), fd)
-                # print(limitThrust(-fd_b[0]-fd_b[1]+fd_b[2]-tau_z),
-                #       limitThrust(fd_b[0]-fd_b[1]+fd_b[2]+tau_z),
-                #       limitThrust(fd_b[0]+fd_b[1]+fd_b[2]-tau_z),
-                #       limitThrust(-fd_b[0]+fd_b[1]+fd_b[2]+tau_z))
-                # print(yaw_r)
+                print("Current thrust = ", limitThrust(32000*thrust_correction))
+                print("Current Pitch = ", pitch)
+                print("Current Roll = ", roll)
+                print("Current Yaw = ", rate_yaw, "\n\n")
 
-            # set_param(cf, 'motorPowerSet', 'm1', limitThrust(-fd_b[0]-fd_b[1]+fd_b[2]-tau_z))
-            # set_param(cf, 'motorPowerSet', 'm2', limitThrust(fd_b[0]-fd_b[1]+fd_b[2]+tau_z))
-            # set_param(cf, 'motorPowerSet', 'm3', limitThrust(fd_b[0]+fd_b[1]+fd_b[2]-tau_z))
-            # set_param(cf, 'motorPowerSet', 'm4', limitThrust(-fd_b[0]+fd_b[1]+fd_b[2]+tau_z))
-
-            # if distance <= r:
-            # cf.commander.send_setpoint(0, 30000, 0, 0)
-            #     print("Landing...")
-            #     time.sleep(5)
-            #     break
     except KeyboardInterrupt:
         set_param(cf, 'motorPowerSet', 'enable', 0)
         cf.commander.send_setpoint(0, 0, 0, 0)
