@@ -34,10 +34,11 @@ __author__ = 'Bitcraze AB'
 __all__ = ['Commander']
 
 TYPE_STOP = 0
-TYPE_VELOCITY_WORLD = 1
+TYPE_FORCE = 1
 TYPE_ZDISTANCE = 2
 TYPE_HOVER = 5
 TYPE_POSITION = 7
+TYPE_VELOCITY_WORLD = 1
 
 
 class Commander():
@@ -76,6 +77,13 @@ class Commander():
         pk = CRTPPacket()
         pk.port = CRTPPort.COMMANDER
         pk.data = struct.pack('<fffH', roll, -pitch, yaw, thrust)
+        self._cf.send_packet(pk)
+        
+    def send_force_setpoint(self, fx, fy, fz, yaw_rate):
+
+        pk = CRTPPacket()
+        pk.port = CRTPPort.COMMANDER_GENERIC
+        pk.data = struct.pack('<Bffff', TYPE_FORCE, fx, fy, fz, -1*yaw_rate)
         self._cf.send_packet(pk)
 
     def send_stop_setpoint(self):
