@@ -83,7 +83,7 @@ class Commander():
 
         pk = CRTPPacket()
         pk.port = CRTPPort.COMMANDER_GENERIC
-        pk.data = struct.pack('<Bffff', TYPE_FORCE, fx, fy, fz, -1*yaw_rate)
+        pk.data = struct.pack('<Bffff', TYPE_FORCE, fx, fy, fz, (-1)*yaw_rate)
         self._cf.send_packet(pk)
 
     def send_stop_setpoint(self):
