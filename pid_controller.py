@@ -17,7 +17,7 @@ class PID:
         self.Cp = 0.0
         self.Ci = 0.0
         self.Cd = 0.0
-        self.Cd_previous = [0.0]*10
+        self.Cd_previous = [0.0] * 10
 
         self.previous_time = origin_time
         self.previous_error = 0.0
@@ -33,7 +33,7 @@ class PID:
         
         # print(dt)
         if dt <= 0.0:
-             dt = 0.0001
+            dt = 0.0001
 
         de = error - self.previous_error
         if self.circular:

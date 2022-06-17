@@ -103,6 +103,7 @@ def limitYawRate(yaw_rate):
     if yaw_rate <= -15:
         yaw_rate = -15
     return yaw_rate
+    
 
 testArgs()
 radio_address = sys.argv[1]
@@ -126,11 +127,6 @@ if __name__ == '__main__':
 
         # CONSTANT DEF
         count = 0                            # Counter
-        timer = 0
-        t = [0]
-        log_yaw = [0]
-        log_yaw_rate = [0]
-        log_Cd = [0]
         r = .2                               # Destination Threshold
         mass = 0.04                          # the mass of the quadrotor in kg
         total_mass = .018                    # Total mass of the blimp in kg
@@ -138,19 +134,48 @@ if __name__ == '__main__':
         g = 9.81                             # Accelleration due to gravity
         e3 = np.array([0,0,1])               # Z unit vector
 
-        yaw_d = 0.0                          # Desired Yaw
         roll_d = 0.0                         # Desired Roll
         pitch_d = 0.0                        # Desired Pitch
+        yaw_d = 0.0                          # Desired Yaw
+        p_r = np.array(positions[rigid_body_id][0:3])
         p_d = np.array([5.4, 0.0, 2.0])      # Desired Position
+        
+        #Graphing Constants
+        timer = 0
+        t = [0]
+        
+        log_roll_current = [0]
+        
+        log_roll_error_derivative = [0]
+        
+        log_pitch_current = [0]
+
+        log_pitch_error_derivative = [0]
+        
+        log_yaw = [0]
+        log_yaw_rate = [0]
+        log_yaw_error_derivative = [0]
+        
+        log_x = [0]
+        log_fx = [0]
+        log_x_error_derivative = [0]
+        
+        log_y = [0]
+        log_fy = [0]
+        log_y_error_derivative = [0]
+        
+        log_z = [0]
+        log_fz = [0]
+        log_z_error_derivative = [0]
+        
 
         # We want to control x, y, z, and yaw
-        pid_x       =   pid.PID(0.0, 0.0, 0.0)
-        pid_y       =   pid.PID(0.0, 0.0, 0.0)
-        pid_z       =   pid.PID(3.0, 0.05, 2.0)
-        pid_roll    =   pid.PID(0.1, 0.0, 0.1, True, 180.0)
-        pid_pitch   =   pid.PID(0.1, 0.0, 0.1, True, 180.0)
+        pid_x       =   pid.PID(1.0, 0.0, 1.0)
+        pid_y       =   pid.PID(1.0, 0.0, 1.0)
+        pid_z       =   pid.PID(4.0, 0.0, 2.0)
+        pid_roll    =   pid.PID(0.2, 0.0, 0.3, True, 180.0)
+        pid_pitch   =   pid.PID(0.2, 0.0, 0.3, True, 180.0)
         pid_yaw     =   pid.PID(20.0, 0.0, 30.0, True, 180.0)
-
 
         print("Into the loop now!")
         while(True):
@@ -161,6 +186,7 @@ if __name__ == '__main__':
             # positional error:
             # a nice PID updater that takes care of the errors including
             # proportional, integral, and derivative terms
+            
             err_p = p_d - p_r
             fx = pid_x.Update(err_p[0],current_time = now)
             fy = pid_y.Update(err_p[1],current_time = now)
@@ -188,21 +214,38 @@ if __name__ == '__main__':
             rot_compensate = Rotation.from_euler("xy", [rate_roll, rate_pitch]).as_matrix()
             
             fd = rot_compensate.T.dot(fd)
-#--------------------------------------------fx------fy-----fz------yaw rate------------------------
-# problems list:
-# 1. Blimp constantly pitches backwards no matter what
-# 2. The Roll correction is unstable and causes oscilations
-# 3. The yaw control has a problem with momentum. When the yaw overcorrects, it spins so far past its 
-#   desired location that it circles back around to having the same sign of yaw rate, adding energy to the spin
 
 
             cf.commander.send_force_setpoint(fd[0], fd[1], fd[2], rate_yaw)
             count += 1
             timer += 1
-            t.append(timer)
-            log_yaw.append(np.degrees(yaw_r))
-            log_yaw_rate.append(rate_yaw)
-            log_Cd.append(pid_yaw.Cd*pid_yaw.Kd)
+            if timer > 10:
+                t.append(timer)
+
+                log_roll_current.append(np.degrees(roll_r))
+
+                log_roll_error_derivative.append(pid_roll.Cd*pid_roll.Kd)
+
+                log_pitch_current.append(np.degrees(pitch_r))
+
+                log_pitch_error_derivative.append(pid_pitch.Cd*pid_pitch.Kd)
+
+                log_yaw.append(np.degrees(yaw_r))
+                log_yaw_rate.append(rate_yaw)
+                log_yaw_error_derivative.append(pid_yaw.Cd*pid_yaw.Kd)
+
+                log_x.append(p_r[0])
+                log_fx.append(fd[0])
+                log_x_error_derivative.append(pid_x.Cd*pid_x.Kd)
+
+                log_y.append(p_r[1])
+                log_fy.append(fd[1])
+                log_y_error_derivative.append(pid_y.Cd*pid_y.Kd)
+
+                log_z.append(p_r[2])
+                log_fz.append(fd[2])
+                log_z_error_derivative.append(pid_z.Cd*pid_z.Kd)
+            
             if count >= 20:
                 count = 0
                 print("fx = %.2f" % (fd[0]))
@@ -211,21 +254,53 @@ if __name__ == '__main__':
                 print("Yaw Rate = %.2f" % (rate_yaw))
                 print("Robot Orientation = [x = %.2f, y = %.2f, z =%.2f]\n[roll = %.2f, pitch = %.2f, yaw = %.2f]\n\n" % (p_r[0],p_r[1],p_r[2], np.degrees(roll_r), np.degrees(pitch_r), np.degrees(yaw_r)))
 
-    except KeyboardInterrupt:   
+    except KeyboardInterrupt:
         
-        fig, ax = plt.subplots(1, figsize=(8, 6))
+        fig, axes = plt.subplots(nrows = 2, ncols = 3, sharex = True)
 
         # Set the title for the figure
-        fig.suptitle('Yaw, Yaw Rate, and Yaw Error Derivative', fontsize=15)
+        plt.suptitle('Gain Tuning Data', fontsize=15)
 
-        # Draw all the lines in the same plot, assigning a label for each one to be
-        # shown in the legend.
-        ax.plot(t, log_yaw, color="red", label="Yaw")
-        ax.plot(t, log_yaw_rate, color="green", label="Yaw Rate")
-        ax.plot(t, log_Cd, color="blue", label="Error Derivative")
+        #Yaw Plot
+        axes[1,2].plot(t, log_yaw, color="red", label="Yaw")
+        axes[1,2].plot(t, log_yaw_rate, color="green", label="Yaw Rate")
+        axes[1,2].plot(t, log_yaw_error_derivative, color="blue", label="Error Derivative")
+        axes[1,2].set_title("Yaw")
+        
+        axes[1,1].plot(t, log_pitch_current, color="red", label="Pitch")
+        #axes[1,1].plot(t, log_pitch_desired, color="green", label="Yaw Rate")
+        axes[1,1].plot(t, log_pitch_error_derivative, color="blue", label="Error Derivative")
+        axes[1,1].set_title("Pitch")
+        
+        axes[1,0].plot(t, log_roll_current, color="red", label="Roll")
+        #axes[1,0].plot(t, log_roll_desired, color="green", label="Yaw Rate")
+        axes[1,0].plot(t, log_roll_error_derivative, color="blue", label="Error Derivative")
+        axes[1,0].set_title("Roll")
+     
+        
+        axes[0,0].plot(t, log_x, color="red", label="X Position")
+        axes[0,0].plot(t, log_fx, color="green", label="fx")
+        axes[0,0].plot(t, log_x_error_derivative, color="blue", label="Error Derivative")
+        axes[0,0].set_title("fx")
+        
+        axes[0,1].plot(t, log_y, color="red", label="Y Position")
+        axes[0,1].plot(t, log_fy, color="green", label="fy")
+        axes[0,1].plot(t, log_y_error_derivative, color="blue", label="Error Derivative")
+        axes[0,1].set_title("fy")
+        
+        axes[0,2].plot(t, log_z, color="red", label="Z Position")
+        axes[0,2].plot(t, log_fz, color="green", label="fz")
+        axes[0,2].plot(t, log_z_error_derivative, color="blue", label="Error Derivative")
+        axes[0,2].set_title("fz")
 
-        # Add a legend, and position it on the lower right (with no box)
-        plt.legend(loc="lower right", title="Key", frameon=False)
+
+        for i in range(0,2):
+            for j in range(0,3):
+                axes[i,j].grid(visible=True, which='major', color='#666666', linestyle='-')
+                axes[i,j].minorticks_on()
+                axes[i,j].grid(visible=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+                axes[i,j].legend(loc="lower right", title="Key", frameon=False)
+
 
         plt.show()
 
