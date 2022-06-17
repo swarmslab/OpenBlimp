@@ -32,8 +32,8 @@ class PID:
         dt = current_time - self.previous_time
         
         # print(dt)
-        if dt <= 0.0:
-            dt = 0.0001
+        if np.allclose(dt, 0.0):
+            dt = 0.001
 
         de = error - self.previous_error
         if self.circular:
@@ -45,9 +45,9 @@ class PID:
         self.Cp = error
         self.Ci += error * dt
         if self.Ci > 10:
-            self.Ci > 10
+            self.Ci = 10
         elif self.Ci <-10:
-            self.Ci =-10
+            self.Ci = -10
 
         self.Cd = de / dt
         self.Cd_previous.pop(0)
