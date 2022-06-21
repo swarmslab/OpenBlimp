@@ -34,7 +34,7 @@ from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.log import LogConfig
 from cflib.utils import uri_helper
 
-uri = uri_helper.uri_from_env(default='radio://0/80/2M/E7E7E7E7E7')
+uri = uri_helper.uri_from_env(default='radio://0/82/2M/E7E7E7E7E7')
 
 # Only output errors from the logging framework
 logging.basicConfig(level=logging.ERROR)
@@ -71,27 +71,25 @@ class LoggingExample:
         print('Connected to %s' % link_uri)
 
         # The definition of the logconfig can be made before connecting
-        self._lg_stab = LogConfig(name='Stabilizer', period_in_ms=100)
-        self._lg_stab.add_variable('stateEstimate.x', 'float')
-        self._lg_stab.add_variable('stateEstimate.y', 'float')
-        self._lg_stab.add_variable('stateEstimate.z', 'float')
-        self._lg_stab.add_variable('stabilizer.roll', 'float')
-        self._lg_stab.add_variable('stabilizer.pitch', 'float')
-        self._lg_stab.add_variable('stabilizer.yaw', 'float')
+        self._lg_motor = LogConfig(name='motor', period_in_ms=100)
+        self._lg_motor.add_variable('motor.m1', 'uint32_t')
+        self._lg_motor.add_variable('motor.m2', 'uint32_t')
+        self._lg_motor.add_variable('motor.m3', 'uint32_t')
+        self._lg_motor.add_variable('motor.m4', 'uint32_t')
         # The fetch-as argument can be set to FP16 to save space in the log packet
-        self._lg_stab.add_variable('pm.vbat', 'FP16')
+        self._lg_motor.add_variable('pm.vbat', 'FP16')
 
         # Adding the configuration cannot be done until a Crazyflie is
         # connected, since we need to check that the variables we
         # would like to log are in the TOC.
         try:
-            self._cf.log.add_config(self._lg_stab)
+            self._cf.log.add_config(self._lg_motor)
             # This callback will receive the data
-            self._lg_stab.data_received_cb.add_callback(self._stab_log_data)
+            self._lg_motor.data_received_cb.add_callback(self._motor_log_data)
             # This callback will be called on errors
-            self._lg_stab.error_cb.add_callback(self._stab_log_error)
+            self._lg_motor.error_cb.add_callback(self._motor_log_error)
             # Start the logging
-            self._lg_stab.start()
+            self._lg_motor.start()
         except KeyError as e:
             print('Could not start log configuration,'
                   '{} not found in TOC'.format(str(e)))
@@ -102,11 +100,11 @@ class LoggingExample:
         t = Timer(5, self._cf.close_link)
         t.start()
 
-    def _stab_log_error(self, logconf, msg):
+    def _motor_log_error(self, logconf, msg):
         """Callback from the log API when an error occurs"""
         print('Error when logging %s: %s' % (logconf.name, msg))
 
-    def _stab_log_data(self, timestamp, data, logconf):
+    def _motor_log_data(self, timestamp, data, logconf):
         """Callback from a the log API when data arrives"""
         print(f'[{timestamp}][{logconf.name}]: ', end='')
         for name, value in data.items():

@@ -126,7 +126,6 @@ if __name__ == '__main__':
         
         streaming_client = initialize_optitrack(rigid_body_id)
 
-        p_r = np.array(positions[rigid_body_id][0:2])
         cf = initialize_crazyflie()
         time.sleep(2)
 
@@ -213,8 +212,8 @@ if __name__ == '__main__':
         # We want to control x, y, z, and yaw
         pid_x       =   pid.PID(0.0, 0.0, 0.0)
         pid_y       =   pid.PID(0.0, 0.0, 0.0)
-        pid_z       =   pid.PID(0.75, 0.75, 1.5)
-        pid_roll    =   pid.PID(2.0, 0.0, 1.0, True, 180.0)
+        pid_z       =   pid.PID(0.5, 0.0, 0.0)
+        pid_roll    =   pid.PID(0.010, 0.0, 0.0, True, 180.0)
         pid_pitch   =   pid.PID(0.0, 0.0, 0.0, True, 180.0)
         pid_yaw     =   pid.PID(0.0, 0.0, 0.0, True, 180.0)
         
@@ -227,7 +226,7 @@ if __name__ == '__main__':
         # pid_pitch   =   pid.PID(2.0, 0.1, 3.0, True, 180.0)
         # pid_yaw     =   pid.PID(40.0, 0.0, 35.0, True, 180.0)
         
-        thrust_gain = 24000
+        thrust_gain = 50000
         set_param(cf, 'ctrlMel', 'massThrust', thrust_gain)
 
         print("Into the loop now!")
@@ -248,13 +247,16 @@ if __name__ == '__main__':
 
             # desired force that we want the robot to generate in the {world frame}
             # fd = np.array([fx, fy, fz]) + (mass * g - f_b) * e3
-            fd = np.array([fx, fy, fz]) + (total_mass*g)*e3
+            fd_w = np.array([fx, fy, fz]) + (total_mass*g)*e3
 
             # orientation of the robot
             rot = Rotation.from_quat(rotations[rigid_body_id][0:4])
+            
+            rot_SO3 = rot.as_matrix()
+
 
             # yaw angle
-            roll_r, pitch_r, yaw_r = rot.as_euler("xyz")
+            roll_r, pitch_r, yaw_r = rot.as_euler("xyz", degrees = True)
             err_roll = roll_d - roll_r
             err_pitch = pitch_d - pitch_r
             err_yaw = yaw_d - yaw_r
@@ -266,19 +268,59 @@ if __name__ == '__main__':
             
             
             temp = Rotation.from_euler("xy", [rate_roll, rate_pitch])
-            rot_compensate = temp.as_matrix()
+            rot_compensate = temp.as_matrix().T
             
-            fd = rot_compensate.T.dot(fd)
+            #fd = rot_compensate.dot(fd)
+            
+            
+            
+            
+            
+            
+            normfd_w = np.linalg.norm(fd_w, ord = 1) # Magnitude
+
+            xid = np.array([np.cos(yaw_d), np.sin(yaw_d), 0]) # intermediate xd
+            zfd = fd_w/normfd_w
+
+            yfd = np.cross(zfd, xid)
+            normyfd = np.linalg.norm(yfd)
+            yfd = yfd/normyfd
+
+            xfd = np.cross(yfd, zfd)
+            normxfd = np.linalg.norm(xfd)
+            xfd = xfd/normxfd
+
+            # Desired Rotation Matrix from the world frame to the body frame
+            Rd = np.hstack((np.asmatrix(xfd).T, np.asmatrix(yfd).T, np.asmatrix(zfd).T))
+            fd_b = Rd.dot(fd_w)
+
+            fd_b_comp = rot_compensate.dot(fd_b.T)
+            
+            fd_w_comp = Rd.T.dot(fd_b_comp)
+
+            
+            
+            
+            
             
             fx_previous.pop(0)
-            fx_previous.append(fd[0])
+            fx_previous.append(fd_w_comp[0])
             fy_previous.pop(0)
-            fy_previous.append(fd[1])
+            fy_previous.append(fd_w_comp[1])
             fz_previous.pop(0)
-            fz_previous.append(fd[2])
+            fz_previous.append(fd_w_comp[2])
             fx = sum(fx_previous)/len(fx_previous)
             fy = sum(fy_previous)/len(fy_previous)
             fz = sum(fz_previous)/len(fz_previous)
+            
+            
+            
+            
+            
+            
+            
+            
+            
             
             
 
@@ -289,16 +331,16 @@ if __name__ == '__main__':
             if timer > 10:
                 t.append(timer)
 
-                log_roll_current.append(np.degrees(roll_r))
+                log_roll_current.append(roll_r)
                 log_roll_rate.append(rate_roll)
                 log_roll_error.append(err_roll)
                 log_roll_error_derivative.append(pid_roll.Cd*pid_roll.Kd)
 
-                log_pitch_current.append(np.degrees(pitch_r))
+                log_pitch_current.append(pitch_r)
                 log_pitch_rate.append(rate_pitch)
                 log_pitch_error_derivative.append(pid_pitch.Cd*pid_pitch.Kd)
 
-                log_yaw.append(np.degrees(yaw_r))
+                log_yaw.append(yaw_r)
                 log_yaw_rate.append(rate_yaw)
                 log_yaw_error_derivative.append(pid_yaw.Cd*pid_yaw.Kd)
 
@@ -318,11 +360,11 @@ if __name__ == '__main__':
             if count >= 200:
                 count = 0
                 print("Cycle: ", timer)
-                print("fx = %.2f" % (fd[0]))
-                print("fy = %.2f" % (fd[1]))
-                print("fz = %.2f" % (fd[2]))
+                print("fx = %.2f" % (fd_w_comp[0]))
+                print("fy = %.2f" % (fd_w_comp[1]))
+                print("fz = %.2f" % (fd_w_comp[2]))
                 print("Yaw Rate = %.2f" % (rate_yaw))
-                print("Robot Orientation = [x = %.2f, y = %.2f, z =%.2f]\n[roll = %.2f, pitch = %.2f, yaw = %.2f]\n\n" % (p_r[0],p_r[1],p_r[2], np.degrees(roll_r), np.degrees(pitch_r), np.degrees(yaw_r)))
+                print("Robot Orientation = [x = %.2f, y = %.2f, z =%.2f]\n[roll = %.2f, pitch = %.2f, yaw = %.2f]\n\n" % (p_r[0],p_r[1],p_r[2], roll_r,pitch_r, yaw_r))
 
     except KeyboardInterrupt:
         
