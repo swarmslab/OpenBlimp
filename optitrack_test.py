@@ -3,6 +3,8 @@ import time
 from NatNetClient import NatNetClient
 from util import quaternion_to_euler_angle_vectorized1
 import socket
+from scipy.spatial.transform import Rotation
+import numpy as np
 
 positions = {}
 rotations = {}
@@ -10,15 +12,15 @@ rotations = {}
 
 def receive_rigid_body_frame(robot_id, position, rotation_quaternion):
     positions[robot_id] = position
-    rotx, roty, rotz = quaternion_to_euler_angle_vectorized1(rotation_quaternion)
-    rotations[robot_id] = rotz
+    # rotx, roty, rotz = quaternion_to_euler_angle_vectorized1(rotation_quaternion)
+    rotations[robot_id] = rotation_quaternion
 
 
 if __name__ == "__main__":
     # clientAddress = socket.gethostbyname(socket.gethostname())
     clientAddress = "192.168.0.43"
     optitrackServerAddress = "192.168.0.4"
-    robot_id = 13
+    robot_id = 30 
 
     # This will create a new NatNet client
     streaming_client = NatNetClient()
@@ -33,6 +35,8 @@ if __name__ == "__main__":
     is_running = streaming_client.run()
     while is_running:
         if robot_id in positions:
-            # last position
-            print('Last position', positions[robot_id], ' rotation', rotations[robot_id])
+            rot = Rotation.from_quat(rotations[robot_id][0:4])
+            roll_r, pitch_r, yaw_r = rot.as_euler("xyz")
+            
+            print('Last position X: %.2f Y: %.2f Z: %.2f\n Roll: %.2f Pitch: %.2f Yaw: %.2f' % (positions[robot_id][0], positions[robot_id][1], positions[robot_id][2], np.degrees(roll_r), np.degrees(pitch_r), np.degrees(yaw_r)))
             time.sleep(.2)

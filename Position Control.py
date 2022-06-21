@@ -15,7 +15,8 @@ import numpy as np
 from NatNetClient import NatNetClient
 import matplotlib.pyplot as plt
 
-timestamp0 = None
+timestamp0 = 0
+
 
 def testArgs():
     if len(sys.argv) != 5:
@@ -96,15 +97,9 @@ def _motor_log_error(logconf, msg):
 
 def _motor_log_data(timestamp, data, logconf):
     global timestamp0
-    """Callback from a the log API when data arrives"""
-    if timestamp0 == None:
-        timestamp0 = timestamp
-        t2.append(0)
-    else:
-        t2.append(timestamp - timestamp0)
-    # print(f'[{timestamp}][{logconf.name}]: ', end='')
+    """Callback from the log API when data arrives"""
+    t2.append(timestamp0)
     for name, value in data.items():
-        # print(name, value)
         if name == "motor.m1":
             log_m1.append(value)
         elif name == "motor.m2":
@@ -113,8 +108,7 @@ def _motor_log_data(timestamp, data, logconf):
             log_m3.append(value)
         elif name == "motor.m4":
             log_m4.append(value)
-        # print(f'{name}: {value:3.3f} ', end='')
-    # print()
+    timestamp0 += 1
 
 
 testArgs()
@@ -217,12 +211,12 @@ if __name__ == '__main__':
         
 
         # We want to control x, y, z, and yaw
-        pid_x       =   pid.PID(2.0, 0.0, 0.0)
-        pid_y       =   pid.PID(2.0, 0.0, 0.0)
-        pid_z       =   pid.PID(5.0, 1.0, 1.5)
-        pid_roll    =   pid.PID(0.0, 0.0, 0.0, True, 180.0)
+        pid_x       =   pid.PID(0.0, 0.0, 0.0)
+        pid_y       =   pid.PID(0.0, 0.0, 0.0)
+        pid_z       =   pid.PID(0.75, 0.75, 1.5)
+        pid_roll    =   pid.PID(2.0, 0.0, 1.0, True, 180.0)
         pid_pitch   =   pid.PID(0.0, 0.0, 0.0, True, 180.0)
-        pid_yaw     =   pid.PID(40.0, 0.0, 35.0, True, 180.0)
+        pid_yaw     =   pid.PID(0.0, 0.0, 0.0, True, 180.0)
         
         
         # Backup
@@ -233,10 +227,11 @@ if __name__ == '__main__':
         # pid_pitch   =   pid.PID(2.0, 0.1, 3.0, True, 180.0)
         # pid_yaw     =   pid.PID(40.0, 0.0, 35.0, True, 180.0)
         
-        thrust_gain = 45000
+        thrust_gain = 24000
         set_param(cf, 'ctrlMel', 'massThrust', thrust_gain)
 
         print("Into the loop now!")
+        start_time = time.time()
         while(True):
             now = time.time()
             # Position
@@ -270,7 +265,8 @@ if __name__ == '__main__':
             rate_yaw = pid_yaw.Update(err_yaw,current_time = now)
             
             
-            rot_compensate = Rotation.from_euler("xy", [rate_roll, rate_pitch]).as_matrix()
+            temp = Rotation.from_euler("xy", [rate_roll, rate_pitch])
+            rot_compensate = temp.as_matrix()
             
             fd = rot_compensate.T.dot(fd)
             
@@ -330,24 +326,26 @@ if __name__ == '__main__':
 
     except KeyboardInterrupt:
         
+        end_time = time.time()
+        
         fig, axes = plt.subplots(nrows = 2, ncols = 3, sharex = True)
 
         # Set the title for the figure
         plt.suptitle('Gain Tuning Data', fontsize=15)
         
-        axes[1,0].plot(t, log_roll_current, color="red", label="Roll")
-        axes[1,0].plot(t, log_roll_rate, color="green", label="Roll Rate")
-        axes[1,0].plot(t, log_roll_error, color="orange", label="Error")
+        axes[1,0].plot(t, log_roll_current, color="red", label="Roll (deg)")
+        axes[1,0].plot(t, log_roll_rate, color="green", label="Roll Rate (rad/s)")
+        axes[1,0].plot(t, log_roll_error, color="orange", label="Error (rad)")
         axes[1,0].plot(t, log_roll_error_derivative, color="blue", label="Error Derivative")
         axes[1,0].set_title("Roll")
         
-        axes[1,1].plot(t, log_pitch_current, color="red", label="Pitch")
-        axes[1,1].plot(t, log_pitch_rate, color="green", label="Pitch Rate")
+        axes[1,1].plot(t, log_pitch_current, color="red", label="Pitch (deg)")
+        axes[1,1].plot(t, log_pitch_rate, color="green", label="Pitch Rate (rad/s)")
         axes[1,1].plot(t, log_pitch_error_derivative, color="blue", label="Error Derivative")
         axes[1,1].set_title("Pitch")
         
-        axes[1,2].plot(t, log_yaw, color="red", label="Yaw")
-        axes[1,2].plot(t, log_yaw_rate, color="green", label="Yaw Rate")
+        axes[1,2].plot(t, log_yaw, color="red", label="Yaw (deg)")
+        axes[1,2].plot(t, log_yaw_rate, color="green", label="Yaw Rate (deg/s)")
         axes[1,2].plot(t, log_yaw_error_derivative, color="blue", label="Error Derivative")
         axes[1,2].set_title("Yaw")
         
@@ -367,17 +365,34 @@ if __name__ == '__main__':
         axes[0,2].plot(t, log_z_error_derivative, color="blue", label="Error Derivative")
         axes[0,2].set_title("fz")
         
-        fig2, ax = plt.subplots(nrows = 1, ncols = 1)
+        fig2, ax = plt.subplots(nrows = 2, ncols = 2)
+        plt.suptitle("Motor Power")
         
-        ax.plot(t2, log_m1, color="red", label="m1")
-        ax.plot(t2, log_m2, color="blue", label="m2")
-        ax.plot(t2, log_m3, color="green", label="m3")
-        ax.plot(t2, log_m4, color="orange", label="m4")
-        ax.set_title("Motor Power")
-        ax.grid(visible=True, which='major', color='#666666', linestyle='-')
-        ax.minorticks_on()
-        ax.grid(visible=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
-        ax.legend(loc="lower right", title="Key", frameon=False)
+        ax[0,0].plot(t2, log_m1, color="red", label="m1")
+        ax[0,0].set_title("M1")
+        ax[0,1].plot(t2, log_m2, color="blue", label="m2")
+        ax[0,1].set_title("M2")
+        ax[1,0].plot(t2, log_m3, color="green", label="m3")
+        ax[1,0].set_title("M3")
+        ax[1,1].plot(t2, log_m4, color="orange", label="m4")
+        ax[1,1].set_title("M4")
+        
+        ax[0,0].minorticks_on()
+        ax[0,0].grid(visible=True, which='major', color='#666666', linestyle='-')
+        ax[0,0].grid(visible=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+        #ax[0,0].legend(loc="lower right", title="Key", frameon=False)
+        ax[0,1].minorticks_on()
+        ax[0,1].grid(visible=True, which='major', color='#666666', linestyle='-')
+        ax[0,1].grid(visible=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+        #ax[0,1].legend(loc="lower right", title="Key", frameon=False)
+        ax[1,0].minorticks_on()
+        ax[1,0].grid(visible=True, which='major', color='#666666', linestyle='-')
+        ax[1,0].grid(visible=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+        #ax[1,0].legend(loc="lower right", title="Key", frameon=False)
+        ax[1,1].minorticks_on()
+        ax[1,1].grid(visible=True, which='major', color='#666666', linestyle='-')
+        ax[1,1].grid(visible=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+        #ax[1,1].legend(loc="lower right", title="Key", frameon=False)
 
 
         for i in range(0,2):
@@ -387,7 +402,7 @@ if __name__ == '__main__':
                 axes[i,j].grid(visible=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
                 axes[i,j].legend(loc="lower right", title="Key", frameon=False)
 
-
+        print("Total flight time: ", end_time - start_time)
         plt.show()
 
         set_param(cf, 'motorPowerSet', 'enable', 0)
