@@ -89,7 +89,7 @@ def limitYawRate(yaw_rate):
     if yaw_rate <= -15:
         yaw_rate = -15
     return yaw_rate
-    
+
 
 def _motor_log_error(logconf, msg):
         """Callback from the log API when an error occurs"""
@@ -123,17 +123,14 @@ rotations = {}
 
 if __name__ == '__main__':
     try:
-        
         streaming_client = initialize_optitrack(rigid_body_id)
-
         cf = initialize_crazyflie()
+        set_param(cf, 'stabilizer', 'estimator', 2)
         time.sleep(2)
 
         # Unlock startup thrust protection
         cf.commander.send_setpoint(0, 0, 0, 0)
-        
-        
-        
+
         _lg_motor = LogConfig(name='motor', period_in_ms=100)
         _lg_motor.add_variable('motor.m1', 'uint32_t')
         _lg_motor.add_variable('motor.m2', 'uint32_t')
@@ -169,45 +166,57 @@ if __name__ == '__main__':
         roll_d = 0.0                         # Desired Roll
         pitch_d = 0.0                        # Desired Pitch
         yaw_d = 0.0                          # Desired Yaw
+
         p_r = np.array(positions[rigid_body_id][0:3])
+        q_r = rotations[rigid_body_id][0:4]
+        rot = Rotation.from_quat(q_r)
+        roll_r, pitch_r, yaw_r = rot.as_euler("xyz")
+        set_param(cf, 'kalman', 'initialX', p_r[0])
+        set_param(cf, 'kalman', 'initialY', p_r[2])
+        set_param(cf, 'kalman', 'initialZ', p_r[3])
+        set_param(cf, 'kalman', 'initialYaw', yaw_r)
+        time.sleep(1)
+        set_param(cf, 'kalman', 'resetEstimation', 1)
+
+        cf.send_extpose(p_r, q_r)
         p_d = np.array([5.4, 0.0, 2.0])      # Desired Position
-        
+
         #Graphing Constants
         timer = 0
         t = [0]
-        
+
         log_roll_current = [0]
         log_roll_rate = [0]
         log_roll_error = [0]
         log_roll_error_derivative = [0]
-        
+
         log_pitch_current = [0]
         log_pitch_rate = [0]
         log_pitch_error_derivative = [0]
-        
+
         log_yaw = [0]
         log_yaw_rate = [0]
         log_yaw_error_derivative = [0]
-        
+
         log_x = [0]
         log_fx = [0]
         log_x_error_derivative = [0]
-        
+
         log_y = [0]
         log_fy = [0]
         log_y_error_derivative = [0]
-        
+
         log_z = [0]
         log_fz = [0]
         log_z_error = [0]
         log_z_error_derivative = [0]
-        
+
         log_m1 = [0]
         log_m2 = [0]
         log_m3 = [0]
         log_m4 = [0]
         t2 = [0]
-        
+
 
         # We want to control x, y, z, and yaw
         pid_x       =   pid.PID(0.0, 0.0, 0.0)
@@ -216,8 +225,8 @@ if __name__ == '__main__':
         pid_roll    =   pid.PID(0.010, 0.0, 0.0, True, 180.0)
         pid_pitch   =   pid.PID(0.0, 0.0, 0.0, True, 180.0)
         pid_yaw     =   pid.PID(0.0, 0.0, 0.0, True, 180.0)
-        
-        
+
+
         # Backup
         # pid_x       =   pid.PID(0.0, 0.0, 0.0)
         # pid_y       =   pid.PID(0.0, 0.0, 0.0)
@@ -225,8 +234,9 @@ if __name__ == '__main__':
         # pid_roll    =   pid.PID(4.0, 0.1, 3.0, True, 180.0)
         # pid_pitch   =   pid.PID(2.0, 0.1, 3.0, True, 180.0)
         # pid_yaw     =   pid.PID(40.0, 0.0, 35.0, True, 180.0)
-        
+
         thrust_gain = 50000
+
         set_param(cf, 'ctrlMel', 'massThrust', thrust_gain)
 
         print("Into the loop now!")
@@ -235,11 +245,13 @@ if __name__ == '__main__':
             now = time.time()
             # Position
             p_r = np.array(positions[rigid_body_id][0:3])
+            q_r = rotations[rigid_body_id][0:4]
+            cf.send_extpose(p_r, q_r)
 
             # positional error:
             # a nice PID updater that takes care of the errors including
             # proportional, integral, and derivative terms
-            
+
             err_p = p_d - p_r
             fx = pid_x.Update(err_p[0],current_time = now)
             fy = pid_y.Update(err_p[1],current_time = now)
@@ -250,10 +262,7 @@ if __name__ == '__main__':
             fd_w = np.array([fx, fy, fz]) + (total_mass*g)*e3
 
             # orientation of the robot
-            rot = Rotation.from_quat(rotations[rigid_body_id][0:4])
-            
-            rot_SO3 = rot.as_matrix()
-
+            rot = Rotation.from_quat(q_r)
 
             # yaw angle
             roll_r, pitch_r, yaw_r = rot.as_euler("xyz", degrees = True)
@@ -265,64 +274,24 @@ if __name__ == '__main__':
             rate_roll = pid_roll.Update(err_roll,current_time = now)
             rate_pitch = pid_pitch.Update(err_pitch,current_time = now)
             rate_yaw = pid_yaw.Update(err_yaw,current_time = now)
-            
-            
+
+
             temp = Rotation.from_euler("xy", [rate_roll, rate_pitch])
-            rot_compensate = temp.as_matrix().T
-            
-            #fd = rot_compensate.dot(fd)
-            
-            
-            
-            
-            
-            
-            normfd_w = np.linalg.norm(fd_w, ord = 1) # Magnitude
+            rot_compensate = temp.as_matrix()
 
-            xid = np.array([np.cos(yaw_d), np.sin(yaw_d), 0]) # intermediate xd
-            zfd = fd_w/normfd_w
+            fd = rot_compensate.T.dot(fd)
 
-            yfd = np.cross(zfd, xid)
-            normyfd = np.linalg.norm(yfd)
-            yfd = yfd/normyfd
-
-            xfd = np.cross(yfd, zfd)
-            normxfd = np.linalg.norm(xfd)
-            xfd = xfd/normxfd
-
-            # Desired Rotation Matrix from the world frame to the body frame
-            Rd = np.hstack((np.asmatrix(xfd).T, np.asmatrix(yfd).T, np.asmatrix(zfd).T))
-            fd_b = Rd.dot(fd_w)
-
-            fd_b_comp = rot_compensate.dot(fd_b.T)
-            
-            fd_w_comp = Rd.T.dot(fd_b_comp)
-
-            
-            
-            
-            
-            
             fx_previous.pop(0)
-            fx_previous.append(fd_w_comp[0])
+            fx_previous.append(fd[0])
             fy_previous.pop(0)
-            fy_previous.append(fd_w_comp[1])
+            fy_previous.append(fd[1])
             fz_previous.pop(0)
-            fz_previous.append(fd_w_comp[2])
+            fz_previous.append(fd[2])
             fx = sum(fx_previous)/len(fx_previous)
             fy = sum(fy_previous)/len(fy_previous)
             fz = sum(fz_previous)/len(fz_previous)
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
+
+
 
 
             cf.commander.send_force_setpoint(fx, fy, fz, rate_yaw)
@@ -356,60 +325,60 @@ if __name__ == '__main__':
                 log_fz.append(fz)
                 log_z_error.append(err_p[2])
                 log_z_error_derivative.append(pid_z.Cd*pid_z.Kd)
-            
+
             if count >= 200:
                 count = 0
                 print("Cycle: ", timer)
-                print("fx = %.2f" % (fd_w_comp[0]))
-                print("fy = %.2f" % (fd_w_comp[1]))
-                print("fz = %.2f" % (fd_w_comp[2]))
+                print("fx = %.2f" % (fd[0]))
+                print("fy = %.2f" % (fd[1]))
+                print("fz = %.2f" % (fd[2]))
                 print("Yaw Rate = %.2f" % (rate_yaw))
                 print("Robot Orientation = [x = %.2f, y = %.2f, z =%.2f]\n[roll = %.2f, pitch = %.2f, yaw = %.2f]\n\n" % (p_r[0],p_r[1],p_r[2], roll_r,pitch_r, yaw_r))
 
     except KeyboardInterrupt:
-        
+
         end_time = time.time()
-        
+
         fig, axes = plt.subplots(nrows = 2, ncols = 3, sharex = True)
 
         # Set the title for the figure
         plt.suptitle('Gain Tuning Data', fontsize=15)
-        
+
         axes[1,0].plot(t, log_roll_current, color="red", label="Roll (deg)")
         axes[1,0].plot(t, log_roll_rate, color="green", label="Roll Rate (rad/s)")
         axes[1,0].plot(t, log_roll_error, color="orange", label="Error (rad)")
         axes[1,0].plot(t, log_roll_error_derivative, color="blue", label="Error Derivative")
         axes[1,0].set_title("Roll")
-        
+
         axes[1,1].plot(t, log_pitch_current, color="red", label="Pitch (deg)")
         axes[1,1].plot(t, log_pitch_rate, color="green", label="Pitch Rate (rad/s)")
         axes[1,1].plot(t, log_pitch_error_derivative, color="blue", label="Error Derivative")
         axes[1,1].set_title("Pitch")
-        
+
         axes[1,2].plot(t, log_yaw, color="red", label="Yaw (deg)")
         axes[1,2].plot(t, log_yaw_rate, color="green", label="Yaw Rate (deg/s)")
         axes[1,2].plot(t, log_yaw_error_derivative, color="blue", label="Error Derivative")
         axes[1,2].set_title("Yaw")
-        
+
         axes[0,0].plot(t, log_x, color="red", label="X Position")
         axes[0,0].plot(t, log_fx, color="green", label="fx")
         axes[0,0].plot(t, log_x_error_derivative, color="blue", label="Error Derivative")
         axes[0,0].set_title("fx")
-        
+
         axes[0,1].plot(t, log_y, color="red", label="Y Position")
         axes[0,1].plot(t, log_fy, color="green", label="fy")
         axes[0,1].plot(t, log_y_error_derivative, color="blue", label="Error Derivative")
         axes[0,1].set_title("fy")
-        
+
         axes[0,2].plot(t, log_z, color="red", label="Z Position")
         axes[0,2].plot(t, log_fz, color="green", label="fz")
         axes[0,2].plot(t, log_z_error, color="orange", label="Error")
         axes[0,2].plot(t, log_z_error_derivative, color="blue", label="Error Derivative")
         axes[0,2].set_title("fz")
-        
+
         fig2, ax = plt.subplots(nrows = 2, ncols = 2)
         plt.suptitle("Motor Power")
-        
+
         ax[0,0].plot(t2, log_m1, color="red", label="m1")
         ax[0,0].set_title("M1")
         ax[0,1].plot(t2, log_m2, color="blue", label="m2")
@@ -418,7 +387,7 @@ if __name__ == '__main__':
         ax[1,0].set_title("M3")
         ax[1,1].plot(t2, log_m4, color="orange", label="m4")
         ax[1,1].set_title("M4")
-        
+
         ax[0,0].minorticks_on()
         ax[0,0].grid(visible=True, which='major', color='#666666', linestyle='-')
         ax[0,0].grid(visible=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
