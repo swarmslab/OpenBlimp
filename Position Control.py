@@ -145,6 +145,7 @@ if __name__ == '__main__':
             _lg_motor.error_cb.add_callback(_motor_log_error)
             # Start the logging
             _lg_motor.start()
+            print("motor power log created")
         except KeyError as e:
             print('Could not start log configuration,'
                   '{} not found in TOC'.format(str(e)))
@@ -171,14 +172,15 @@ if __name__ == '__main__':
         q_r = rotations[rigid_body_id][0:4]
         rot = Rotation.from_quat(q_r)
         roll_r, pitch_r, yaw_r = rot.as_euler("xyz")
-        set_param(cf, 'kalman', 'initialX', pr[0])
-        set_param(cf, 'kalman', 'initialY', pr[2])
-        set_param(cf, 'kalman', 'initialZ', pr[3])
+        set_param(cf, 'kalman', 'initialX', p_r[0])
+        set_param(cf, 'kalman', 'initialY', p_r[1])
+        set_param(cf, 'kalman', 'initialZ', p_r[2])
         set_param(cf, 'kalman', 'initialYaw', yaw_r)
-        time.sleep(1)
-        set_param(cf, 'kalman', 'resetEstimation', 1)
+        # time.sleep(1)
+        set_param(cf, 'kalman', 'resetEstimation', np.uint8(1))
+        cf.loc.send_extpose(p_r, q_r)
+        print("Kalman estimator initialized")
 
-        cf.send_extpose(p_r, q_r)
         p_d = np.array([5.4, 0.0, 2.0])      # Desired Position
 
         #Graphing Constants
@@ -245,7 +247,7 @@ if __name__ == '__main__':
             # Position
             p_r = np.array(positions[rigid_body_id][0:3])
             q_r = rotations[rigid_body_id][0:4]
-            cf.send_extpose(p_r, q_r)
+            cf.loc.send_extpose(p_r, q_r)
 
             # positional error:
             # a nice PID updater that takes care of the errors including
