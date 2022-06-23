@@ -9,6 +9,7 @@ from cflib.crazyflie.log import LogConfig
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 from cflib.positioning.motion_commander import MotionCommander
 from cflib.utils import uri_helper
+from cflib.crazyflie.localization import Localization
 import pid_controller as pid
 from scipy.spatial.transform import Rotation
 import numpy as np
@@ -97,6 +98,11 @@ def _motor_log_error(logconf, msg):
 
 def _motor_log_data(timestamp, data, logconf):
     global timestamp0
+    global t2
+    global log_m1
+    global log_m2
+    global log_m3
+    global log_m4
     """Callback from the log API when data arrives"""
     t2.append(timestamp0)
     for name, value in data.items():
@@ -120,6 +126,11 @@ logging.basicConfig(level=logging.ERROR)
 
 positions = {}
 rotations = {}
+t2 = [0]
+log_m1 = [0]
+log_m2 = [0]
+log_m3 = [0]
+log_m4 = [0]
 
 if __name__ == '__main__':
     try:
@@ -172,13 +183,13 @@ if __name__ == '__main__':
         rot = Rotation.from_quat(q_r)
         roll_r, pitch_r, yaw_r = rot.as_euler("xyz")
         set_param(cf, 'kalman', 'initialX', p_r[0])
-        set_param(cf, 'kalman', 'initialY', p_r[2])
-        set_param(cf, 'kalman', 'initialZ', p_r[3])
+        set_param(cf, 'kalman', 'initialY', p_r[1])
+        set_param(cf, 'kalman', 'initialZ', p_r[2])
         set_param(cf, 'kalman', 'initialYaw', yaw_r)
         time.sleep(1)
         set_param(cf, 'kalman', 'resetEstimation', 1)
 
-        cf.send_extpose(p_r, q_r)
+        cf.local(p_r, q_r)
         p_d = np.array([5.4, 0.0, 2.0])      # Desired Position
 
         #Graphing Constants
@@ -211,12 +222,6 @@ if __name__ == '__main__':
         log_z_error = [0]
         log_z_error_derivative = [0]
 
-        log_m1 = [0]
-        log_m2 = [0]
-        log_m3 = [0]
-        log_m4 = [0]
-        t2 = [0]
-
 
         # We want to control x, y, z, and yaw
         pid_x       =   pid.PID(0.0, 0.0, 0.0)
@@ -247,6 +252,7 @@ if __name__ == '__main__':
             p_r = np.array(positions[rigid_body_id][0:3])
             q_r = rotations[rigid_body_id][0:4]
             cf.send_extpose(p_r, q_r)
+            cf
 
             # positional error:
             # a nice PID updater that takes care of the errors including
