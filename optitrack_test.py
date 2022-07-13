@@ -20,7 +20,7 @@ if __name__ == "__main__":
     # clientAddress = socket.gethostbyname(socket.gethostname())
     clientAddress = "192.168.0.43"
     optitrackServerAddress = "192.168.0.4"
-    robot_id = 30 
+    robot_id = int(sys.argv[1])
 
     # This will create a new NatNet client
     streaming_client = NatNetClient()
