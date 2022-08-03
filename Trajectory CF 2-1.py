@@ -205,6 +205,24 @@ def circle_trjactory_vertical(t, radius, center_x, center_y, center_z, yaw):
     type = "cv"
     return np.array([radius*np.cos(np.radians(.01*t-90)) + center_x, center_y, radius*np.sin(np.radians(.01*t-90))+ center_z, yaw])
 
+def figure_eight_trajectory(t, radius, center_x, center_y, height, yaw):
+    """Q-AB trajectory in a figure eight of set radius around a given point
+
+    Args:
+        t (int): counter
+        radius (float): radius of trajectory in m
+        center_x (float): x coordinate of center of circle
+        center_y (float): y coordinate of center of circle
+        height (float): height for Q-AB to fly at in m
+        yaw (float): desired yaw angle in degrees
+
+    Returns:
+        Array: Desired position at cycle t
+    """
+    global type
+    type = "8"
+    return np.array([radius*np.cos(.000175*t) + center_x, radius*np.sin(2*.000175*t) + center_y, height, yaw]), np.array([-0.000175*radius*np.sin(0.000175*t), 2*0.000175*radius*np.sin(2*0.000175*t), 0.0])
+
 def helix_trajectory(t, radius, center_x, center_y, max_height, yaw):
     """Q-AB trajectory in a helix of set radius around a given point
 
@@ -358,7 +376,7 @@ if __name__ == '__main__':
         print("Into the loop now!")
         while(True):
             t += 1
-            p_d, v_d = helix_trajectory(t, 2, 0, 0, 2.5,0)
+            p_d, v_d = figure_eight_trajectory(t, 2, 0, 0, 2, 0)
             
             
             # GET POSE ###############################################################################
@@ -466,6 +484,35 @@ if __name__ == '__main__':
         with open("./"+directory+"/t2.dat", "wb") as file:
             pickle.dump(t2, file)
         
+        # DATA ANALYSIS ################################################################################
+        mag_pos_err = np.linalg.norm(np.array([log_error_x, log_error_y, log_error_z]),axis=0)
+        avg_pos_err = np.mean(mag_pos_err)
+        max_pos_err = np.max(mag_pos_err)
+        min_pos_err = np.min(mag_pos_err)
+        
+        mag_vel_err = np.linalg.norm(np.array([log_error_vel_x, log_error_vel_y, log_error_vel_z]),axis=0)
+        avg_vel_err = np.mean(mag_vel_err)
+        max_vel_err = np.max(mag_vel_err)
+        min_vel_err = np.min(mag_vel_err)
+        
+        mag_xy_err = np.linalg.norm(np.array([log_error_vel_x, log_error_vel_y]),axis=0)
+        avg_xy_err = np.mean(mag_xy_err)
+        max_xy_err = np.max(mag_xy_err)
+        min_xy_err = np.min(mag_xy_err)
+        
+        with open(directory+"/data.txt", "w") as file:
+            file.write(
+                "Average Position Error Magnitude: %fm\n" \
+                "Maximum Position Error Magnitude: %fm\n" \
+                "Minimum Position Error Magnitude: %fm\n" \
+                "Average Velocity Error Magnitude: %fm/s\n" \
+                "Maximum Velocity Error Magnitude: %fm/s\n" \
+                "Minimum Velocity Error Magnitude: %fm/s\n" \
+                "Average XY Position Error Magnitude: %fm\n" \
+                "Maximum XY Position Error Magnitude: %fm\n" \
+                "Minimum XY Position Error Magnitude: %fm" % (
+                avg_pos_err,max_pos_err,min_pos_err,avg_vel_err,max_vel_err,min_vel_err,avg_xy_err,max_xy_err,min_xy_err
+                     ))
         
         
         # TRAJECTORY ###################################################################################
@@ -586,7 +633,7 @@ if __name__ == '__main__':
         # PAPER FIGURE ##################################################################################
         index = 10
         figure = plt.figure(figsize=(6,10))
-        if type != "c":
+        if type != "c" and type != "8":
             ax4 = figure.add_subplot(3,1,1, projection="3d")
             ax4.plot3D(log_destination_x[index:], log_destination_y[index:], log_destination_z[index:], color="blue",label="Trajectory")
             ax4.plot3D(log_position_x[index:], log_position_y[index:], log_position_z[index:], color="orange", label="Position")

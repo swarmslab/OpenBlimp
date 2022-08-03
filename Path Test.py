@@ -249,19 +249,22 @@ if __name__ == '__main__':
         roll_r, pitch_r, yaw_r = rot.as_euler("xyz")                       # Yaw of Robot
         
         # CONSTANT DEFINITIONS ####################################################################
-        p_d = np.array([float(sys.argv[5]), float(sys.argv[6]), float(sys.argv[7]), 0])      # Desired Position and Yaw Angle
+        p_d = np.array([5.4, 0, 1.62, 0])      # Desired Position and Yaw Angle
         p_r_p = p_r                          # Previous Position
         v_r = np.array([0.0, 0.0, 0.0])      # Velocity Error
         v_p = v_r                            # Previous Velocity
         now = time.time()                    # Current Time
         count = 0                            # Counter
-        r = .2                               # Destination Threshold
+        r = .15                               # Destination Threshold
         mass = .008                          # Total mass of the blimp in kg
         massThrust = 45000                   # Thrust Gain
         start_time = time.time()             # Start of flight
         t = 0                                # Ticker
         height = 0.7                         # Minimum flight height
+        distance = 100
         p = p_r
+        setpoint1 = np.array([3.5, 0, 1.62, 0.0])
+        setpoint2 = np.array([1.5, 0, 1.62, 0.0])
         
         # UNLOCK THRUST PROTECTION ################################################################
         cf.commander.send_setpoint(0, 0, 0, 0)
@@ -362,9 +365,11 @@ if __name__ == '__main__':
         t = 0
         angle = 0
         while(True):
-            t += 1
-            p_d = np.array([float(sys.argv[5]), float(sys.argv[6]), float(sys.argv[7]), 0])
-            v_d = 0
+            if distance < r:
+                if np.array_equal(p_d, setpoint1):
+                    p_d = setpoint2
+                else:
+                    p_d = setpoint1
             
             # GET POSE ###############################################################################
             p_r_p = p_r
@@ -372,6 +377,7 @@ if __name__ == '__main__':
             q_r = rotations[rigid_body_id][0:4]
             rot = Rotation.from_quat(q_r)
             roll_r, pitch_r, yaw_r = rot.as_euler("xyz", degrees = True)
+            distance = np.sqrt((p_d[0] - p_r[0])**2 + (p_d[1] - p_r[1])**2 + (p_d[2] - p_r[2])**2)
 
             # SEND DATA ###############################################################################
             cf.commander.send_position_setpoint(p_d[0] ,p_d[1] ,p_d[2] ,p_d[3])
@@ -382,38 +388,8 @@ if __name__ == '__main__':
             cf.loc.send_extpose(p_r, q_r)
             
             # CALCULATE ERROR #########################################################################
-            err_x = p_d[0] - p_r[0]
-            err_y = p_d[1] - p_r[1]
-            err_z = p_d[2] - p_r[2]
-            err_yaw = p_d[3] - yaw_r
-            
-            dp_r = p_r - p_r_p
-            then = now
-            now = time.time()
-            dt = now - then
-            v_p = v_r
-            if np.allclose(dt, 0):
-                v_r = v_p
-            else:
-                v_r = dp_r/dt
-            
-            v_err = v_d - v_r
             
             # LOG DATA ################################################################################
-            t1.append(t)
-            log_destination_x.append(p_d[0])
-            log_destination_y.append(p_d[1])
-            log_destination_z.append(p_d[2])
-            log_position_x.append(p_r[0])
-            log_position_y.append(p_r[1])
-            log_position_z.append(p_r[2])
-            log_error_x.append(err_x)
-            log_error_y.append(err_y)
-            log_error_z.append(err_z)
-            log_error_yaw.append(err_yaw)
-            log_error_vel_x.append(v_err[0])
-            log_error_vel_y.append(v_err[1])
-            log_error_vel_z.append(v_err[2])
             
             # PRINT ###################################################################################
             count += 1
