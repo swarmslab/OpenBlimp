@@ -4,6 +4,18 @@ A project that uses a Crazyflie Quad-rotors to actuate a blimp as well as a simu
 ## Getting Started
 Fork and clone this repository to your local machine. 
 
+# Simulator
+
+## Usage
+
+Open the "openBlimpSim.ipynb" file using jupyter notebook or Google Colab
+
+Change parameters as needed
+
+Either run one simulation or run a series of simulations to test metrics while changing certain parameters.
+
+# Flight Control
+
 ### Prerequisites
 
 To utilize this repository properly you will need the following:
